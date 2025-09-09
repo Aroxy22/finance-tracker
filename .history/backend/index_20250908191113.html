@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Financial Tracker Bot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f4f6f8;
+    color: #333;
+}
+h1 {
+    text-align: center;
+    margin-top: 30px;
+    color: #2c3e50;
+}
+.container {
+    max-width: 900px;
+    margin: auto;
+    padding: 20px;
+}
+.input-group {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+input[type=text] {
+    padding: 10px;
+    width: 65%;
+    border: 1px solid #ccc;
+    border-radius: 5px 0 0 5px;
+    font-size: 16px;
+}
+button {
+    padding: 10px 20px;
+    border: none;
+    background-color: #3498db;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 0 5px 5px 0;
+    transition: background 0.3s;
+    margin-left: 5px;
+}
+button:hover {
+    opacity: 0.9;
+}
+#speechBtn {
+    background-color: #e67e22;
+}
+#speechBtn.stop {
+    background-color: #c0392b;
+}
+#response {
+    margin: 20px 0;
+    padding: 10px;
+    background: #ecf0f1;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+#transactions table {
+    width: 100%;
+    border-collapse: collapse;
+}
+#transactions th, #transactions td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ccc;
+}
+#transactions th {
+    background-color: #3498db;
+    color: white;
+}
+#transactions tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+#summary {
+    margin-top: 20px;
+    padding: 15px;
+    background: #dff9fb;
+    border-left: 5px solid #1abc9c;
+    border-radius: 5px;
+}
+.income { color: green; font-weight: bold; }
+.expense { color: red; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>💰 Financial Tracker Bot</h1>
+    <div class="input-group">
+        <input type="text" id="textInput" placeholder="Type a command... e.g., I spent 50 on groceries">
+        <button onclick="sendText()">Send</button>
+        <button id="speechBtn">🎤 Start Mic</button>
+    </div>
+    <div id="response"></div>
+    <div id="summary"></div>
+    <div id="transactions">
+        <h3>Transactions</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Expense?</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody id="txBody"></tbody>
+        </table>
+    </div>
+</div>
+<script>
+const responseDiv = document.getElementById("response");
+const txBody = document.getElementById("txBody");
+const summaryDiv = document.getElementById("summary");
+const textInput = document.getElementById("textInput");
+const speechBtn = document.getElementById("speechBtn");
+
+let recognition;
+let micActive = false;
+
+if('webkitSpeechRecognition' in window){
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onresult = function(event){
+        let transcript = "";
+        for(let i=0;i<event.results.length;i++){
+            transcript += event.results[i][0].transcript;
+        }
+        textInput.value = transcript;
+        if(event.results[0].isFinal){
+            sendCommand(transcript);
+            textInput.value = "";
+        }
+    };
+
+    recognition.onerror = function(event){ 
+        alert("Speech error: "+event.error); 
+        stopMic();
+    };
+
+    recognition.onend = function(){
+        if(micActive){
+            recognition.start(); 
+        }
+    };
+}else{
+    speechBtn.disabled = true;
+    speechBtn.innerText = "Speech not supported";
+}
+
+speechBtn.onclick = function(){
+    if(!micActive){
+        startMic();
+    } else {
+        stopMic();
+    }
+};
+
+function startMic(){
+    micActive = true;
+    speechBtn.innerText = "🛑 Stop Mic";
+    speechBtn.classList.add("stop");
+    recognition.start();
+}
+
+function stopMic(){
+    micActive = false;
+    speechBtn.innerText = "🎤 Start Mic";
+    speechBtn.classList.remove("stop");
+    recognition.stop();
+}
+
+async function sendCommand(text) {
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text})
+    });
+    const data = await res.json();
+    responseDiv.innerText = JSON.stringify(data, null, 2);
+    if(data.status === "need_amount"){
+        let amt = prompt(data.message);
+        if(amt) sendCommand(`${data.description} ${amt}`);
+        return;
+    }
+    listTransactions();
+    showSummary();
+}
+
+function sendText(){
+    const text = textInput.value;
+    if(text) sendCommand(text);
+}
+
+async function listTransactions(){
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text: "list"})
+    });
+    const data = await res.json();
+    txBody.innerHTML = "";
+    if(data.transactions){
+        data.transactions.forEach(tx => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${tx.id}</td>
+                <td>${tx.desc}</td>
+                <td>${tx.category}</td>
+                <td class="${tx.is_expense?'expense':'income'}">${tx.amount?.toFixed(2)||0}</td>
+                <td>${tx.is_expense ? "Yes" : "No"}</td>
+                <td>${new Date(tx.ts).toLocaleString()}</td>
+            `;
+            txBody.appendChild(tr);
+        });
+    }
+}
+
+async function showSummary(){
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text: "summary"})
+    });
+    const data = await res.json();
+    if(data.status==="ok"){
+        summaryDiv.innerHTML = `
+            <strong>Summary:</strong><br>
+            Income: <span class="income">$${data.income.toFixed(2)}</span><br>
+            Expense: <span class="expense">$${data.expense.toFixed(2)}</span><br>
+            Balance: $${data.balance.toFixed(2)}
+        `;
+    }
+}
+
+listTransactions();
+showSummary();
+</script>
+</body>
+</html>

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>💰 Finance Tracker Bot — Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --primary:#3b82f6; --primary-dark:#2563eb; --success:#16a34a; --danger:#ef4444; --muted:#6b7280;
+  --bg:#f3f4f6; --card:#ffffff; --glass: rgba(255,255,255,0.7);
+  --font: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+body{font-family:var(--font); margin:0; background:linear-gradient(180deg,#f8fafc 0%, #eef2ff 100%); color:#0f172a}
+.container{max-width:1200px;margin:28px auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.title{display:flex;flex-direction:column}
+h1{margin:0;font-size:1.6rem;color:var(--primary-dark)}
+.subtitle{color:var(--muted);font-size:0.95rem}
+.controls{display:flex;gap:8px;align-items:center}
+.input, select{padding:10px 12px;border-radius:10px;border:1px solid #e6e9ef;background:white;min-width:180px}
+.btn{padding:10px 12px;border-radius:10px;border:none;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:var(--primary);color:white}
+.btn-ghost{background:transparent;border:1px solid rgba(15,23,42,0.06);color:#0f172a}
+.btn-warning{background:#f59e0b;color:white}
+.btn-success{background:var(--success);color:white}
+.grid{display:grid;grid-template-columns:1fr 380px;gap:18px;margin-top:18px}
+.left{display:flex;flex-direction:column;gap:16px}
+.right{display:flex;flex-direction:column;gap:16px}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.card{background:var(--card);border-radius:12px;padding:14px;box-shadow: 0 6px 20px rgba(2,6,23,0.06)}
+.small{font-size:0.9rem;color:var(--muted)}
+.large{font-size:1.3rem;font-weight:700}
+.txs{margin-top:6px}
+.table{width:100%;border-collapse:collapse}
+.table th{background:var(--primary);color:white;padding:10px;text-align:left;font-weight:600}
+.table td{padding:10px;border-bottom:1px solid #f1f5f9}
+.actions button{margin-right:6px}
+.toast{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast-item{background:var(--primary);color:white;padding:10px 14px;border-radius:10px;box-shadow:0 8px 28px rgba(37,99,235,0.12)}
+.progress{height:10px;background:#eef2ff;border-radius:8px;overflow:hidden;margin-top:8px}
+.progress-bar{height:100%;background:var(--primary);width:0%;transition:width 0.6s}
+.controls-compact{display:flex;gap:8px;flex-wrap:wrap}
+.filter-row{display:flex;gap:8px;align-items:center}
+.chart-card{height:260px}
+.form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.small-muted{font-size:0.85rem;color:var(--muted)}
+.goal-progress{height:12px;background:#f1f5f9;border-radius:12px;overflow:hidden;margin-top:8px}
+.goal-bar{height:100%;background:var(--success);width:0%;transition:width 0.6s}
+@media(max-width:980px){
+  .grid{grid-template-columns:1fr;gap:12px}
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title">
+      <h1>💼 Finance Tracker Bot — Pro</h1>
+      <div class="subtitle">Budgets • Recurring • Goals • Trends • Voice-enabled</div>
+    </div>
+
+    <div class="controls">
+      <input id="textInput" class="input" placeholder="Type command e.g. 'spent 20 on coffee'">
+      <button class="btn btn-primary" onclick="sendText()">Send</button>
+      <button id="speechBtn" class="btn btn-warning">🎤 Mic On</button>
+      <button id="voiceBtn" class="btn btn-success">🔊 Voice On</button>
+      <button class="btn btn-ghost" onclick="exportCSV()">📥 Export CSV</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="left">
+      <div class="summary-grid">
+        <div class="card">
+          <div class="small">Income</div>
+          <div id="incomeVal" class="large">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="small">Expense</div>
+          <div id="expenseVal" class="large">$0.00</div>
+        </div>
+        <div class="card">
+          <div class="small">Balance</div>
+          <div id="balanceVal" class="large">$0.00</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Budgets</strong><div class="small-muted">Set monthly budgets per category</div></div>
+          <button class="btn btn-primary" onclick="showBudgetForm()">+ Budget</button>
+        </div>
+        <div id="budgetsList" style="margin-top:12px"></div>
+        <div id="budgetForm" style="display:none;margin-top:12px">
+          <input id="budgetCategory" class="input" placeholder="Category (e.g., food)">
+          <input id="budgetAmount" class="input" placeholder="Monthly amount (e.g., 500)">
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="saveBudget()">Save</button>
+            <button class="btn btn-ghost" onclick="hideBudgetForm()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Goals</strong><div class="small-muted">Set savings goals</div></div>
+          <button class="btn btn-primary" onclick="showGoalForm()">+ Goal</button>
+        </div>
+        <div id="goalsList" style="margin-top:12px"></div>
+        <div id="goalForm" style="display:none;margin-top:12px">
+          <input id="goalTitle" class="input" placeholder="Goal title (e.g., Vacation)">
+          <input id="goalAmount" class="input" placeholder="Target amount (e.g., 2000)">
+          <input id="goalEnd" class="input" placeholder="End date (YYYY-MM-DD) (optional)">
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="saveGoal()">Save</button>
+            <button class="btn btn-ghost" onclick="hideGoalForm()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Recurring Transactions</strong><div class="small-muted">Create recurring bills or income</div></div>
+          <button class="btn btn-primary" onclick="showRecurringForm()">+ Recurring</button>
+        </div>
+        <div id="recurringList" style="margin-top:12px"></div>
+
+        <div id="recurringForm" style="display:none;margin-top:12px">
+          <input id="recDesc" class="input" placeholder="Description (e.g., Rent)">
+          <input id="recAmount" class="input" placeholder="Amount (e.g., 1000)">
+          <input id="recCat" class="input" placeholder="Category (e.g., rent)">
+          <select id="recInterval" class="input">
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <input id="recNext" class="input" placeholder="Next run date (YYYY-MM-DD)">
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="saveRecurring()">Save</button>
+            <button class="btn btn-ghost" onclick="hideRecurringForm()">Cancel</button>
+            <button class="btn btn-warning" onclick="runDueRecurring()">Run Due Now</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Transactions</strong><div class="small-muted">Recent transactions</div></div>
+          <div class="filter-row">
+            <select id="filterType" class="input" onchange="listTransactions()">
+              <option value="">All</option><option value="income">Income</option><option value="expense">Expense</option>
+            </select>
+            <input id="searchText" class="input" placeholder="Search" oninput="listTransactions()">
+          </div>
+        </div>
+
+        <div class="txs" id="transactionsDiv">
+          <table class="table">
+            <thead><tr><th>ID</th><th>Description</th><th>Category</th><th>Amount</th><th>When</th><th>Actions</th></tr></thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card chart-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Monthly Trends</strong><div class="small-muted">Income vs Expense (last 6 months)</div></div>
+          <button class="btn btn-ghost" onclick="loadTrends()">Refresh</button>
+        </div>
+        <canvas id="trendsChart" style="margin-top:12px"></canvas>
+      </div>
+
+      <div class="card chart-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Category Breakdown</strong><div class="small-muted">Expense distribution (last month)</div></div>
+          <button class="btn btn-ghost" onclick="loadTrends()">Refresh</button>
+        </div>
+        <canvas id="categoryChart" style="margin-top:12px"></canvas>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>Ask / Analyze</strong><div class="small-muted">Get smart insights (AI)</div></div>
+          <div style="display:flex;gap:8px">
+            <input id="askInput" class="input" placeholder="How can I save more?">
+            <button class="btn btn-primary" onclick="analyze()">Analyze</button>
+          </div>
+        </div>
+        <div id="answer" style="margin-top:12px;min-height:70px;padding:10px;border-radius:8px;background:#f8fafc"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Debug / Raw API Response -->
+<div id="response"
+     style="white-space: pre-wrap;
+            font-family: monospace;
+            margin-top: 12px;
+            background:#f9fafb;
+            border:1px solid #e5e7eb;
+            border-radius:8px;
+            padding:8px;
+            display:none;">
+</div>
+
+
+<div class="toast" id="toast"></div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// ----------------- Utilities & State -----------------
+const toastDiv = document.getElementById('toast');
+const txBody = document.getElementById('txBody');
+let allTransactions = [];
+let voiceOn = true;
+
+// ----------------- TTS -----------------
+function speak(text){
+  if(!voiceOn || !text) return;
+  if('speechSynthesis' in window){
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    window.speechSynthesis.speak(u);
+  }
+}
+
+// ----------------- Toast -----------------
+function showToast(msg, danger=false){
+  const t = document.createElement('div');
+  t.className = 'toast-item';
+  t.style.background = danger ? 'linear-gradient(90deg,#ef4444,#f97316)' : 'linear-gradient(90deg,#2563eb,#60a5fa)';
+  t.innerText = msg;
+  toastDiv.appendChild(t);
+  setTimeout(()=> t.remove(),4500);
+  if(!danger) speak(msg);
+}
+
+// ----------------- CRUD: Transactions -----------------
+async function sendCommand(text){
+  if(!text) return;
+  try {
+    const res = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    const data = await res.json();
+    document.getElementById('response').innerText = JSON.stringify(data, null, 2);
+    if(data.status === 'need_amount'){
+      const amt = prompt(data.message);
+      if(amt) sendCommand(`${data.description} ${amt}`);
+      return;
+    }
+    if(data.status === 'ok' && data.action === 'added'){
+      showToast(`Added ${data.is_expense ? 'Expense' : 'Income'} $${data.amount.toFixed(2)} (${data.category})`);
+      if(data.budget_warning){
+        showToast(data.budget_warning, true);
+      }
+    } else if(data.status === 'error'){
+      showToast(data.message || 'Error', true);
+    }
+    await listTransactions();
+    await loadSummary();
+  } catch(err){
+    showToast('API Error: '+err.message, true);
+  }
+}
+
+function sendText(){ const t = document.getElementById('textInput').value; if(t.trim()) sendCommand(t.trim()); document.getElementById('textInput').value=''; }
+
+// list transactions
+async function listTransactions(){
+  const res = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'list'})});
+  const data = await res.json();
+  allTransactions = data.transactions || [];
+  renderTransactions();
+}
+
+function renderTransactions(){
+  const filter = document.getElementById('filterType').value;
+  const search = document.getElementById('searchText').value.toLowerCase();
+  txBody.innerHTML = '';
+  const filtered = allTransactions.filter(tx=>{
+    const byType = filter ? (filter==='income' ? !tx.is_expense : tx.is_expense) : true;
+    const bySearch = !search || tx.desc.toLowerCase().includes(search) || tx.category.toLowerCase().includes(search);
+    return byType && bySearch;
+  });
+  filtered.forEach(tx=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${tx.id}</td>
+      <td>${tx.desc}</td>
+      <td>${tx.category}</td>
+      <td style="color:${tx.is_expense ? '#ef4444':'#16a34a'}">$${tx.amount.toFixed(2)}</td>
+      <td>${new Date(tx.ts).toLocaleString()}</td>
+      <td class="actions">
+        <button class="btn btn-ghost" onclick="editTransaction(${tx.id})">Edit</button>
+        <button class="btn btn-warning" onclick="deleteTransaction(${tx.id})">Delete</button>
+      </td>`;
+    txBody.appendChild(tr);
+  });
+}
+
+async function deleteTransaction(id){
+  if(!confirm('Delete transaction '+id+'?')) return;
+  await sendCommand(`delete ${id}`);
+}
+
+// editing simplified: open prompt to change description & amount & expense flag
+async function editTransaction(id){
+  const tx = allTransactions.find(t=>t.id===id);
+  if(!tx) return showToast('Transaction not found', true);
+  const newDesc = prompt('Description', tx.desc) || tx.desc;
+  const newAmt = parseFloat(prompt('Amount', tx.amount)) || tx.amount;
+  const isExp = confirm('Mark as expense? OK = Yes') ? true : false;
+  try {
+    const res = await fetch('/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      id, description:newDesc, amount:newAmt, is_expense:isExp
+    })});
+    await listTransactions();
+    await loadSummary();
+    showToast('Transaction updated');
+  } catch(e){
+    showToast('Edit failed', true);
+  }
+}
+
+// ----------------- Summary -----------------
+async function loadSummary(){
+  const res = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'summary'})});
+  const data = await res.json();
+  if(data.status === 'ok'){
+    document.getElementById('incomeVal').innerText = `$${data.income.toFixed(2)}`;
+    document.getElementById('expenseVal').innerText = `$${data.expense.toFixed(2)}`;
+    document.getElementById('balanceVal').innerText = `$${data.balance.toFixed(2)}`;
+  }
+}
+
+// ----------------- Budgets -----------------
+async function loadBudgets(){
+  const res = await fetch('/api/budget');
+  const data = await res.json();
+  const container = document.getElementById('budgetsList');
+  container.innerHTML = '';
+  for(const b of data.budgets){
+    // compute spent this month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const rowsRes = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'list'})});
+    const rowsData = await rowsRes.json();
+    const txs = rowsData.transactions || [];
+    const spent = txs.filter(t => t.is_expense && t.category.toLowerCase()===b.category.toLowerCase() && new Date(t.ts) >= new Date(monthStart))
+                     .reduce((s,x)=>s+x.amount,0);
+    const pct = Math.min(100, (spent / b.monthly_amount) * 100 || 0);
+    const div = document.createElement('div');
+    div.style.marginBottom = '10px';
+    div.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${b.category}</strong><div class="small-muted">$${spent.toFixed(2)} / $${b.monthly_amount.toFixed(2)}</div></div>
+      <div><button class="btn btn-ghost" onclick="deleteBudget(${b.id})">Remove</button></div></div>
+      <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>`;
+    container.appendChild(div);
+    if(pct >= 85){
+      showToast(`Budget near limit: ${b.category} - ${pct.toFixed(0)}%`, pct>=100);
+    }
+  }
+}
+
+function showBudgetForm(){ document.getElementById('budgetForm').style.display='block'; }
+function hideBudgetForm(){ document.getElementById('budgetForm').style.display='none'; }
+async function saveBudget(){
+  const cat = document.getElementById('budgetCategory').value.trim();
+  const amt = parseFloat(document.getElementById('budgetAmount').value);
+  if(!cat || !amt){ return alert('Category & amount required'); }
+  const res = await fetch('/api/budget',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:cat,monthly_amount:amt})});
+  const data = await res.json();
+  showToast('Budget saved');
+  hideBudgetForm();
+  await loadBudgets();
+}
+async function deleteBudget(id){
+  if(!confirm('Delete budget?')) return;
+  await fetch(`/api/budget/${id}`,{method:'DELETE'});
+  showToast('Budget removed');
+  await loadBudgets();
+}
+
+// ----------------- Goals -----------------
+async function loadGoals(){
+  const res = await fetch('/api/goal');
+  const data = await res.json();
+  const container = document.getElementById('goalsList');
+  container.innerHTML = '';
+  // compute current saved as negative of expense towards that title? We'll treat goals as savings: amount saved = total income - expense since start (simple)
+  for(const g of data.goals){
+    // compute progress: calculate net delta between start_date and today
+    const rowsRes = await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'list'})});
+    const rowsData = await rowsRes.json();
+    const txs = rowsData.transactions || [];
+    const start = new Date(g.start_date || new Date().toISOString());
+    const saved = txs.filter(t=> new Date(t.ts) >= start)
+                     .reduce((s,x)=> s + (x.is_expense ? -x.amount : x.amount), 0);
+    const pct = Math.max(0, Math.min(100, (saved / g.target_amount) * 100 || 0));
+    const div = document.createElement('div');
+    div.style.marginBottom='10px';
+    div.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${g.title}</strong><div class="small-muted">$${saved.toFixed(2)} / $${g.target_amount.toFixed(2)}</div></div>
+      <div><button class="btn btn-ghost" onclick="deleteGoal(${g.id})">Remove</button></div></div>
+      <div class="goal-progress"><div class="goal-bar" style="width:${pct}%"></div></div>`;
+    container.appendChild(div);
+    if(pct >= 100) showToast(`Goal achieved: ${g.title}`);
+  }
+}
+
+function showGoalForm(){ document.getElementById('goalForm').style.display='block'; }
+function hideGoalForm(){ document.getElementById('goalForm').style.display='none'; }
+async function saveGoal(){
+  const title = document.getElementById('goalTitle').value.trim();
+  const amt = parseFloat(document.getElementById('goalAmount').value);
+  const end = document.getElementById('goalEnd').value || null;
+  if(!title || !amt) return alert('Title & amount required');
+  await fetch('/api/goal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title, target_amount:amt, end_date:end})});
+  showToast('Goal created');
+  hideGoalForm();
+  await loadGoals();
+}
+async function deleteGoal(id){
+  if(!confirm('Delete goal?')) return;
+  await fetch(`/api/goal/${id}`,{method:'DELETE'});
+  showToast('Goal removed');
+  await loadGoals();
+}
+
+// ----------------- Recurring -----------------
+async function loadRecurring(){
+  const res = await fetch('/api/recurring');
+  const data = await res.json();
+  const container = document.getElementById('recurringList');
+  container.innerHTML = '';
+  for(const r of data.recurring){
+    const div = document.createElement('div'); div.style.marginBottom='10px';
+    div.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${r.description}</strong><div class="small-muted">${r.interval} • next: ${r.next_run} • $${r.amount.toFixed(2)}</div></div>
+      <div><button class="btn btn-ghost" onclick="deleteRecurring(${r.id})">Remove</button></div></div>`;
+    container.appendChild(div);
+  }
+}
+function showRecurringForm(){ document.getElementById('recurringForm').style.display='block'; }
+function hideRecurringForm(){ document.getElementById('recurringForm').style.display='none'; }
+async function saveRecurring(){
+  const desc = document.getElementById('recDesc').value.trim();
+  const amt = parseFloat(document.getElementById('recAmount').value);
+  const cat = document.getElementById('recCat').value.trim() || 'general';
+  const interval = document.getElementById('recInterval').value;
+  const next = document.getElementById('recNext').value;
+  if(!desc || !amt || !next) return alert('Description, amount and next run date required');
+  await fetch('/api/recurring',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    description:desc, amount:amt, category:cat, interval, next_run: next
+  })});
+  showToast('Recurring rule saved');
+  hideRecurringForm();
+  await loadRecurring();
+}
+async function deleteRecurring(id){
+  if(!confirm('Delete recurring rule?')) return;
+  await fetch(`/api/recurring/${id}`,{method:'DELETE'});
+  showToast('Recurring removed');
+  await loadRecurring();
+}
+async function runDueRecurring(){
+  const res = await fetch('/api/recurring/run_due',{method:'POST'});
+  const data = await res.json();
+  if(data.created && data.created.length>0){
+    showToast(`Created ${data.created.length} recurring transactions`);
+    await listTransactions();
+    await loadSummary();
+  } else {
+    showToast('No recurrences due');
+  }
+}
+
+// ----------------- Trends & Charts -----------------
+let trendsChart=null, categoryChart=null;
+async function loadTrends(){
+  const res = await fetch('/api/trends');
+  const data = await res.json();
+  const ctx = document.getElementById('trendsChart').getContext('2d');
+  if(trendsChart) trendsChart.destroy();
+  trendsChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: data.labels,
+      datasets:[
+        {label:'Income', data: data.income, fill:false, borderColor:'#16a34a', tension:0.2},
+        {label:'Expense', data: data.expense, fill:false, borderColor:'#ef4444', tension:0.2}
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false}
+  });
+
+  const ctx2 = document.getElementById('categoryChart').getContext('2d');
+  if(categoryChart) categoryChart.destroy();
+  const cats = Object.keys(data.category_breakdown || {});
+  const vals = Object.values(data.category_breakdown || {});
+  categoryChart = new Chart(ctx2, {
+    type:'pie',
+    data:{labels:cats, datasets:[{data:vals}]},
+    options:{responsive:true, maintainAspectRatio:false}
+  });
+}
+
+// ----------------- AI Analyze -----------------
+@app.post("/api/analyze")
+async def analyze(payload: dict = Body(...)):
+    question = payload.get("text", "")
+    if not question:
+        raise HTTPException(status_code=400, detail="text is required")
+    
+    result = await ask_question(AskRequest(text=question))
+    
+    # Return key 'analysis' to match frontend
+    return {"status": "ok", "analysis": result.get("answer", "")}
+
+
+// ----------------- Ask (legacy) -----------------
+async function sendQuestion(){ const text = document.getElementById('askInput').value; if(!text) return; const res = await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})}); const data = await res.json(); if(data.status==='ok'){ document.getElementById('answer').innerHTML = data.answer; const temp = document.createElement('div'); temp.innerHTML = data.answer; const plain = temp.textContent || temp.innerText; speak(plain); } else { document.getElementById('answer').innerHTML = `<span style="color:red">Error</span>`; speak('Error fetching answer'); } }
+
+// ----------------- CSV Export -----------------
+async function exportCSV(){
+  let csv="ID,Description,Category,Amount,Expense,Date\n";
+  allTransactions.forEach(t=>{ csv+= `${t.id},"${t.desc.replace(/"/g,'""')}",${t.category},${t.amount},${t.is_expense?1:0},${t.ts}\n`;});
+  const blob = new Blob([csv], {type:'text/csv'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'transactions.csv';
+  link.click();
+}
+
+// ----------------- Speech Recognition & Voice Toggle -----------------
+const speechBtn = document.getElementById('speechBtn');
+const voiceBtn = document.getElementById('voiceBtn');
+let recognition, micOn=false;
+if('webkitSpeechRecognition' in window){
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+  recognition.onresult = function(event){
+    const transcript = event.results[event.results.length-1][0].transcript;
+    document.getElementById('textInput').value = transcript;
+    // optional: speak confirmation
+    speak('Heard: ' + transcript);
+  };
+  recognition.onerror = function(e){ console.warn('speech error', e); showToast('Speech error: '+(e.error||'unknown'), true); };
+  speechBtn.onclick = ()=>{
+    if(!micOn){ recognition.start(); micOn=true; speechBtn.innerText='🎤 Mic Off'; speechBtn.classList.add('btn-ghost'); showToast('Microphone on'); }
+    else { recognition.stop(); micOn=false; speechBtn.innerText='🎤 Mic On'; speechBtn.classList.remove('btn-ghost'); showToast('Microphone off'); }
+  };
+} else {
+  speechBtn.disabled = true;
+  speechBtn.innerText = 'Mic not supported';
+}
+
+voiceBtn.onclick = ()=>{
+  voiceOn = !voiceOn;
+  voiceBtn.innerText = voiceOn ? '🔊 Voice On' : '🔇 Voice Off';
+  showToast(voiceOn ? 'Voice enabled' : 'Voice muted');
+  if(!voiceOn && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
+// ----------------- Init -----------------
+(async function init(){
+  await listTransactions();
+  await loadSummary();
+  await loadBudgets();
+  await loadGoals();
+  await loadRecurring();
+  await loadTrends();
+})();
+</script>
+</body>
+</html>

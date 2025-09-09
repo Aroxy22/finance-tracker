@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Financial Tracker Bot</title>
+<style>
+body { font-family: Arial; padding: 20px; }
+button { padding: 10px 20px; margin: 5px; }
+#transactions { margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<h1>Financial Tracker Bot</h1>
+
+<!-- Text input -->
+<input type="text" id="textInput" placeholder="Type a command..." size="50">
+<button onclick="sendText()">Send</button>
+
+<!-- Speech input -->
+<button id="speechBtn">Start Listening</button>
+
+<div id="response"></div>
+<div id="transactions"></div>
+
+<script>
+const responseDiv = document.getElementById("response");
+const transactionsDiv = document.getElementById("transactions");
+
+async function sendCommand(text) {
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text})
+    });
+    const data = await res.json();
+
+    // Handle need_amount
+    if (data.status === "need_amount") {
+        let amt = prompt(data.message);
+        if(amt) sendCommand(`${data.description} ${amt}`);
+        return;
+    }
+
+    responseDiv.innerText = JSON.stringify(data, null, 2);
+
+    if(data.status === "ok" && data.action !== undefined) {
+        listTransactions();
+    }
+}
+
+function sendText() {
+    const text = document.getElementById("textInput").value;
+    if(text) sendCommand(text);
+}
+
+// List transactions
+async function listTransactions() {
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text: "list"})
+    });
+    const data = await res.json();
+    transactionsDiv.innerHTML = "<h3>Transactions:</h3>" + JSON.stringify(data.transactions, null, 2);
+}
+
+// Speech recognition
+const speechBtn = document.getElementById("speechBtn");
+let recognition;
+if('webkitSpeechRecognition' in window){
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onresult = function(event){
+        const transcript = event.results[0][0].transcript;
+        sendCommand(transcript);
+    };
+
+    recognition.onerror = function(event){ alert("Speech error: "+event.error); };
+
+    speechBtn.onclick = () => recognition.start();
+}else{
+    speechBtn.disabled = true;
+    speechBtn.innerText = "Speech not supported";
+}
+
+// Initial list
+listTransactions();
+</script>
+
+</body>
+</html>

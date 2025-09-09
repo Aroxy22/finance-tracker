@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>💰 Finance Tracker Bot — Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --primary:#3b82f6; --primary-dark:#2563eb; --success:#16a34a; --danger:#ef4444; --muted:#6b7280;
+  --bg:#f3f4f6; --card:#ffffff; --font:"Inter","Segoe UI",system-ui,sans-serif;
+}
+body{font-family:var(--font);margin:0;background:#f8fafc;color:#0f172a}
+.container{max-width:1200px;margin:28px auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:1.6rem;color:var(--primary-dark)}
+.subtitle{color:var(--muted);font-size:0.95rem}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.input, select{padding:10px 12px;border-radius:10px;border:1px solid #e6e9ef;background:white}
+.btn{padding:10px 12px;border-radius:10px;border:none;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--primary);color:white}
+.btn-warning{background:#f59e0b;color:white}
+.btn-success{background:var(--success);color:white}
+.btn-ghost{background:#f1f5f9}
+.grid{display:grid;grid-template-columns:1fr 380px;gap:18px;margin-top:18px}
+.card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 20px rgba(2,6,23,0.06)}
+.table{width:100%;border-collapse:collapse}
+.table th{background:var(--primary);color:white;padding:8px;text-align:left}
+.table td{padding:8px;border-bottom:1px solid #f1f5f9}
+.toast{position:fixed;top:18px;right:18px;z-index:9999}
+.toast-item{background:var(--primary);color:white;padding:10px 14px;margin-top:8px;border-radius:10px}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>💼 Finance Tracker Bot — Pro</h1>
+      <div class="subtitle">Budgets • Recurring • Goals • Trends • Voice-enabled</div>
+    </div>
+    <div class="controls">
+      <input id="textInput" class="input" placeholder="e.g. 'spent 20 on coffee'">
+      <button class="btn btn-primary" onclick="sendText()">Send</button>
+      <button id="speechBtn" class="btn btn-warning">🎤 Mic</button>
+      <button id="voiceBtn" class="btn btn-success">🔊 Voice</button>
+      <button class="btn btn-ghost" onclick="exportCSV()">📥 Export</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card"><h3>Summary</h3><div id="summary"></div></div>
+      <div class="card"><h3>Budgets</h3><div id="budgets"></div></div>
+      <div class="card"><h3>Goals</h3><div id="goals"></div></div>
+      <div class="card"><h3>Recurring</h3><div id="recurring"></div></div>
+      <div class="card"><h3>Transactions</h3>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Amount</th><th>Cat</th><th>Desc</th><th>When</th><th></th></tr></thead>
+          <tbody id="txBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="card"><h3>Trends</h3><canvas id="trendChart"></canvas></div>
+      <div class="card"><h3>Analyze</h3>
+        <input id="questionInput" class="input" placeholder="Ask Gemini">
+        <button class="btn btn-primary" onclick="askGemini()">Ask</button>
+        <div id="answer" style="margin-top:10px;font-size:0.9rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <div style="cursor:pointer" onclick="toggleDebug()">
+      <strong>🔧 Debug</strong> <span id="debugToggle">(click to expand)</span>
+    </div>
+    <pre id="response" style="display:none;max-height:200px;overflow:auto;background:#f8fafc;padding:10px;border-radius:8px;font-size:0.85rem"></pre>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const respElem=document.getElementById('response');
+function toggleDebug(){respElem.style.display=respElem.style.display==='none'?'block':'none';}
+
+function debugLog(label,data){
+  if(respElem) respElem.innerText += `\\n--- ${label} ---\\n`+JSON.stringify(data,null,2)+"\\n";
+}
+
+const txBody=document.getElementById('txBody');let allTransactions=[];
+async function sendText(){const t=document.getElementById('textInput').value;sendCommand(t);}
+async function sendCommand(text){
+  try{let r=await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    let d=await r.json();debugLog('command',d);
+    if(d.status==='ok') showToast('✅ Success'); else showToast('⚠️ '+(d.message||'Error'),true);
+    listTransactions();loadSummary();}
+  catch(e){showToast('API error '+e,true);}
+}
+async function listTransactions(){
+  let r=await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:"list"})});
+  let d=await r.json();debugLog('list',d);
+  if(d.status==='ok'){allTransactions=d.transactions;txBody.innerHTML=d.transactions.map(t=>`<tr><td>${t.id}</td><td>${t.amount}</td><td>${t.category}</td><td>${t.desc}</td><td>${t.ts}</td><td><button onclick="delTx(${t.id})">❌</button></td></tr>`).join('');}
+}
+async function delTx(id){await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:"delete "+id})});listTransactions();}
+
+async function loadSummary(){
+  let r=await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:"summary"})});
+  let d=await r.json();debugLog('summary',d);
+  if(d.status==='ok'){document.getElementById('summary').innerHTML=`Income: $${d.income}<br>Expense: $${d.expense}<br><b>Balance: $${d.balance}</b>`;}
+}
+async function askGemini(){
+  let q=document.getElementById('questionInput').value;
+  let r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
+  let d=await r.json();debugLog('ask',d);
+  document.getElementById('answer').innerHTML=d.answer||'no answer';
+}
+
+function exportCSV(){let rows=[["id","amount","category","desc","ts"]];allTransactions.forEach(t=>rows.push([t.id,t.amount,t.category,t.desc,t.ts]));let csv=rows.map(r=>r.join(",")).join("\\n");let blob=new Blob([csv],{type:'text/csv'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='transactions.csv';a.click();}
+function showToast(msg,err){let d=document.createElement('div');d.className='toast-item';d.style.background=err?'#ef4444':'#3b82f6';d.innerText=msg;document.getElementById('toast').appendChild(d);setTimeout(()=>d.remove(),3000);}
+listTransactions();loadSummary();
+</script>
+</body>
+</html>

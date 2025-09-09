@@ -1,0 +1,61 @@
+<!doctype html>
+<style>
+body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 8px; }
+button { padding: 10px 16px; font-size: 16px; }
+#log { margin-top: 12px; white-space: pre-wrap; background:#f7f7f7; padding:12px; border-radius:8px}
+</style>
+</head>
+<body>
+<h1>Speech Finance Tracker</h1>
+<p>Click the mic and speak commands like: "I spent 250 rupees on groceries today" or "Add income 5000 salary"</p>
+<button id="start">🎤 Start Listening</button>
+<button id="stop" disabled>⏹ Stop</button>
+<div id="transcript"></div>
+<div style="margin-top:12px"><strong>Server response:</strong></div>
+<div id="log">No actions yet.</div>
+
+<script>
+const startBtn = document.getElementById('start')
+const stopBtn = document.getElementById('stop')
+const transcriptDiv = document.getElementById('transcript')
+const log = document.getElementById('log')
+
+let recog = null
+if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+transcriptDiv.innerText = 'Web Speech API not supported in this browser. Use Chrome.'
+} else {
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+recog = new SpeechRecognition()
+recog.continuous = false
+recog.interimResults = false
+recog.lang = 'en-IN'
+
+recog.onstart = () => { startBtn.disabled = true; stopBtn.disabled = false }
+recog.onend = () => { startBtn.disabled = false; stopBtn.disabled = true }
+recog.onerror = (e) => { log.innerText = 'Recognition error: ' + e.error }
+recog.onresult = (ev) => {
+const text = ev.results[0][0].transcript
+transcriptDiv.innerText = 'Heard: ' + text
+sendToServer(text)
+}
+}
+
+startBtn.onclick = () => { if (recog) recog.start() }
+stopBtn.onclick = () => { if (recog) recog.stop() }
+
+async function sendToServer(text) {
+log.innerText = 'Sending: ' + text
+try {
+const resp = await fetch('/api/command', {
+method: 'POST', headers: {'Content-Type':'application/json'},
+body: JSON.stringify({text})
+})
+const j = await resp.json()
+log.innerText = JSON.stringify(j, null, 2)
+} catch (e) {
+log.innerText = 'Network or server error: ' + e.toString()
+}
+}
+</script>
+</body>
+</html>

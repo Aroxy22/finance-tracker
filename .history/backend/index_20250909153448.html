@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>💰 Finance Tracker Bot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root {
+  --primary: #3498db;
+  --primary-dark: #2980b9;
+  --success: #2ecc71;
+  --danger: #e74c3c;
+  --warning: #f39c12;
+  --gray: #95a5a6;
+  --bg: #f9fafb;
+  --card-bg: #ffffff;
+  --font: "Segoe UI", system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: #2c3e50;
+  line-height: 1.5;
+}
+
+h1 {
+  text-align: center;
+  margin: 30px 0;
+  font-size: 2rem;
+  color: var(--primary-dark);
+}
+
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+}
+
+/* --- Input Section --- */
+.input-group, .filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+input[type=text], select {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button:hover { transform: translateY(-2px); }
+
+/* Button Variants */
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-dark); }
+
+.btn-success { background: var(--success); color: white; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-warning { background: var(--warning); color: white; }
+.btn-gray { background: var(--gray); color: white; }
+
+#speechBtn.off, #voiceBtn.off { background: var(--gray); }
+
+/* --- Cards --- */
+#summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+  margin-top: 25px;
+}
+
+.card {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  text-align: center;
+}
+
+.card h3 { margin-bottom: 8px; font-size: 1.2rem; }
+
+.income { color: var(--success); font-weight: bold; }
+.expense { color: var(--danger); font-weight: bold; }
+
+/* --- Transactions Table --- */
+#transactions table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+#transactions th, #transactions td {
+  padding: 14px;
+  text-align: left;
+}
+
+#transactions th {
+  background: var(--primary);
+  color: white;
+}
+
+#transactions tr:nth-child(even) { background: #f9f9f9; }
+
+.delete-btn, .edit-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.delete-btn { background: var(--danger); color: white; }
+.delete-btn:hover { background: #c0392b; }
+
+.edit-btn { background: var(--warning); color: white; }
+.edit-btn:hover { background: #d35400; }
+
+/* --- Notifications (Toast style) --- */
+#notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+}
+
+.notification-card {
+  background: var(--primary);
+  color: white;
+  padding: 14px 18px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  animation: fadeInRight 0.4s ease-out;
+  max-width: 280px;
+}
+
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(50px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* --- Chatbot Section --- */
+.chat-section {
+  margin-top: 30px;
+}
+
+#answer {
+  margin-top: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #eef5fb;
+  border-left: 4px solid var(--primary);
+  line-height: 1.6;
+  min-height: 50px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .input-group, .filter-group { flex-direction: column; }
+  button { width: 100%; justify-content: center; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💰 Finance Tracker Bot</h1>
+
+  <!-- Command Input -->
+  <div class="input-group">
+    <input type="text" id="textInput" placeholder="Type a command or amount...">
+    <button class="btn-primary" onclick="sendText()">🚀 Send</button>
+    <button id="speechBtn" class="btn-warning">🎤 Mic On</button>
+    <button id="voiceBtn" class="btn-success">🔊 Voice On</button>
+    <button class="btn-gray" onclick="exportCSV()">📂 Export CSV</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-group">
+    <select id="filterType" onchange="listTransactions()">
+      <option value="">All Types</option>
+      <option value="income">Income</option>
+      <option value="expense">Expense</option>
+    </select>
+    <input type="text" id="searchText" placeholder="🔍 Search description..." oninput="listTransactions()">
+  </div>
+
+  <!-- Bot Response -->
+  <div id="response"></div>
+
+  <!-- Finance Q&A -->
+  <div class="chat-section">
+    <div class="input-group">
+      <input type="text" id="askInput" placeholder="Ask financial question...">
+      <button class="btn-primary" onclick="sendQuestion()">💬 Ask</button>
+    </div>
+    <div id="answer"></div>
+  </div>
+
+  <!-- Summary -->
+  <div id="summary">
+    <div class="card"><h3>Income</h3><p class="income" id="incomeVal">$0.00</p></div>
+    <div class="card"><h3>Expense</h3><p class="expense" id="expenseVal">$0.00</p></div>
+    <div class="card"><h3>Balance</h3><p id="balanceVal">$0.00</p></div>
+  </div>
+
+  <!-- Category Summary -->
+  <div id="categorySummary" class="summary"></div>
+
+  <!-- Transactions -->
+  <div id="transactions">
+    <h2>📜 Transactions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Description</th><th>Category</th><th>Amount</th>
+          <th>Expense?</th><th>Time</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="txBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="notification"></div>
+
+<script>
+const responseDiv = document.getElementById("response");
+const txBody = document.getElementById("txBody");
+const incomeVal = document.getElementById("incomeVal");
+const expenseVal = document.getElementById("expenseVal");
+const balanceVal = document.getElementById("balanceVal");
+const categorySummary = document.getElementById("categorySummary");
+const notificationDiv = document.getElementById("notification");
+
+let allTransactions = [];
+
+// ---------- Voice Control ----------
+let voiceOn = true;
+
+function speak(text) {
+    if (!voiceOn) return; // skip if voice is off
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
+        speechSynthesis.cancel(); // stop previous speech
+        speechSynthesis.speak(utterance);
+    }
+}
+
+const voiceBtn = document.getElementById("voiceBtn");
+voiceBtn.onclick = () => {
+    voiceOn = !voiceOn;
+    if (voiceOn) {
+        voiceBtn.innerText = "🔊 Voice On";
+        voiceBtn.classList.remove("off");
+    } else {
+        speechSynthesis.cancel(); // stop ongoing speech immediately
+        voiceBtn.innerText = "🔇 Voice Off";
+        voiceBtn.classList.add("off");
+    }
+};
+
+// ---------- Send Command ----------
+async function sendCommand(text){
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text})
+    });
+    const data = await res.json();
+    responseDiv.innerText = JSON.stringify(data, null, 2);
+
+    if(data.status === "need_amount"){
+        let amt = prompt(data.message);
+        if(amt) sendCommand(`${data.description} ${amt}`);
+        return;
+    }
+
+    if(data.status==="ok" && data.action==="added"){
+        showNotification(data);
+    } else if(data.status === "error"){
+        showNotification({message: data.message, error:true});
+    }
+
+    listTransactions();
+    showSummary();
+    document.getElementById("textInput").value = "";
+}
+
+function sendText(){ const text = document.getElementById("textInput").value; if(text) sendCommand(text); }
+
+// ---------- Transactions ----------
+async function listTransactions(){
+    const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text: "list"})
+    });
+    const data = await res.json();
+    allTransactions = data.transactions || [];
+
+    const filterType = document.getElementById("filterType").value;
+    const searchText = document.getElementById("searchText").value.toLowerCase();
+
+    const filtered = allTransactions.filter(tx => {
+        let matchType = filterType ? (filterType==='income' ? !tx.is_expense : tx.is_expense) : true;
+        let matchSearch = tx.desc.toLowerCase().includes(searchText);
+        return matchType && matchSearch;
+    });
+
+    txBody.innerHTML = "";
+    filtered.forEach(tx => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${tx.id}</td>
+            <td>${tx.desc}</td>
+            <td>${tx.category}</td>
+            <td class="${tx.is_expense ? 'expense':'income'}">$${tx.amount.toFixed(2)}</td>
+            <td>${tx.is_expense ? 'Yes':'No'}</td>
+            <td>${new Date(tx.ts).toLocaleString()}</td>
+            <td>
+                <button class="edit-btn" onclick="editTransaction(${tx.id})">Edit</button>
+                <button class="delete-btn" onclick="deleteTransaction(${tx.id})">Delete</button>
+            </td>
+        `;
+        txBody.appendChild(tr);
+    });
+
+    showCategorySummary(filtered);
+}
+
+function showSummary(){
+    let totalIncome = allTransactions.filter(t => !t.is_expense).reduce((a,b)=>a+b.amount,0);
+    let totalExpense = allTransactions.filter(t => t.is_expense).reduce((a,b)=>a+b.amount,0);
+    incomeVal.innerText = `$${totalIncome.toFixed(2)}`;
+    expenseVal.innerText = `$${totalExpense.toFixed(2)}`;
+    balanceVal.innerText = `$${(totalIncome-totalExpense).toFixed(2)}`;
+}
+
+function showCategorySummary(transactions){
+    let summary = {};
+    transactions.forEach(tx => { if(!summary[tx.category]) summary[tx.category]=0; summary[tx.category]+=tx.amount; });
+    categorySummary.innerHTML = '';
+    for(let cat in summary){
+        const card = document.createElement('div');
+        card.className='card';
+        card.innerHTML=`<h3>${cat}</h3><p>Total: $${summary[cat].toFixed(2)}</p>`;
+        categorySummary.appendChild(card);
+    }
+}
+
+// ---------- Notifications ----------
+function showNotification(data){
+    const notif=document.createElement("div");
+    notif.className="notification-card";
+    let spokenText = "";
+
+    if(data.error){
+        notif.style.background="#e67e22"; 
+        notif.innerText=`Error: ${data.message}`;
+        spokenText = `Error: ${data.message}`;
+    }
+    else if(data.deleted_id!==undefined){
+        notif.style.background="#3498db"; 
+        notif.innerText=`Deleted transaction ID: ${data.deleted_id}`;
+        spokenText = `Deleted transaction ID ${data.deleted_id}`;
+    }
+    else if(data.id!==undefined){
+        notif.style.background=data.is_expense?"#e74c3c":"#2ecc71"; 
+        notif.innerText=`Transaction Added: ID:${data.id}, $${data.amount.toFixed(2)}, ${data.category}`;
+        spokenText = `Transaction added. ${data.is_expense ? "Expense" : "Income"} of $${data.amount.toFixed(2)} in category ${data.category}`;
+    }
+
+    notificationDiv.appendChild(notif);
+    notif.scrollIntoView({behavior:"smooth"});
+    setTimeout(()=> notif.remove(),4000);
+
+    if(spokenText) speak(spokenText);
+}
+
+// ---------- Edit/Delete ----------
+async function deleteTransaction(id){ await sendCommand(`delete ${id}`); }
+async function editTransaction(id){
+    let tx = allTransactions.find(t=>t.id===id);
+    if(!tx) return;
+    let newDesc = prompt("Description:", tx.desc) || tx.desc;
+    let newAmt = parseFloat(prompt("Amount:", tx.amount)) || tx.amount;
+    let isExpense = confirm("Is Expense? (OK=Yes)") ? true : false;
+
+    await fetch("/api/edit",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({id:id, description:newDesc, amount:newAmt, is_expense:isExpense})
+    });
+    listTransactions();
+    showSummary();
+}
+
+// ---------- Finance Q&A ----------
+async function sendQuestion(){
+  const text = document.getElementById("askInput").value;
+  if(!text) return;
+
+  const res = await fetch("/api/ask", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({text})
+  });
+
+  const data = await res.json();
+
+  if(data.status === "ok"){
+      document.getElementById("answer").innerHTML = data.answer;
+
+      // Speak plain text (strip HTML)
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = data.answer;
+      const plainText = tempDiv.textContent || tempDiv.innerText;
+      speak(plainText);
+  } else {
+      document.getElementById("answer").innerHTML = `<span style="color:red;">Error: ${data.message || "Unknown error"}</span>`;
+      speak(`Error: ${data.message || "Unknown error"}`);
+  }
+
+  document.getElementById("askInput").value = "";
+}
+
+// ---------- CSV Export ----------
+async function exportCSV(){
+    let csv="ID,Description,Category,Amount,Expense,Date\n";
+    allTransactions.forEach(t=>{csv+=`${t.id},"${t.desc}",${t.category},${t.amount},${t.is_expense?1:0},${t.ts}\n`;});
+    const blob = new Blob([csv], {type:"text/csv"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "transactions.csv";
+    link.click();
+}
+
+// ---------- Speech Recognition ----------
+const speechBtn = document.getElementById("speechBtn");
+let recognition, micOn=false;
+if('webkitSpeechRecognition' in window){
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous=true;
+    recognition.interimResults=true;
+    recognition.lang="en-US";
+    recognition.onresult=function(event){
+        let transcript = event.results[event.results.length-1][0].transcript;
+        document.getElementById("textInput").value = transcript;
+    };
+    recognition.onerror=function(event){ alert("Speech error: "+event.error); };
+    speechBtn.onclick=()=>{
+        if(!micOn){ recognition.start(); micOn=true; speechBtn.innerText="🎤 Mic Off"; speechBtn.classList.remove("off"); }
+        else{ recognition.stop(); micOn=false; speechBtn.innerText="🎤 Mic On"; speechBtn.classList.add("off"); }
+    };
+}else{ speechBtn.disabled=true; speechBtn.innerText="Mic not supported"; }
+
+listTransactions();
+showSummary();
+</script>
+</body>
+</html>

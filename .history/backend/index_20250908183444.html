@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Speech Finance Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      background: #f4f6f8;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 10px 0;
+      cursor: pointer;
+      border-radius: 8px;
+      border: none;
+      background: #4caf50;
+      color: white;
+    }
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    #transcript {
+      font-size: 18px;
+      margin: 1rem 0;
+      padding: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      min-height: 40px;
+    }
+    pre {
+      background: #222;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎤 Speech Finance Tracker</h1>
+  <button id="startBtn">Start Listening</button>
+  <button id="stopBtn" disabled>Stop Listening</button>
+
+  <div>
+    <h3>Transcript:</h3>
+    <div id="transcript">[waiting for speech...]</div>
+  </div>
+
+  <div>
+    <h3>Server Response:</h3>
+    <pre id="response">No response yet.</pre>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const transcriptDiv = document.getElementById("transcript");
+    const responsePre = document.getElementById("response");
+
+    let recognition;
+    if ("webkitSpeechRecognition" in window) {
+      recognition = new webkitSpeechRecognition();
+    } else if ("SpeechRecognition" in window) {
+      recognition = new SpeechRecognition();
+    } else {
+      alert("Speech Recognition not supported in this browser. Use Chrome!");
+    }
+
+    if (recognition) {
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        transcriptDiv.textContent = "Listening...";
+      };
+
+      recognition.onend = () => {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      };
+
+      recognition.onerror = (event) => {
+        transcriptDiv.textContent = "Error: " + event.error;
+      };
+
+      recognition.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript;
+        transcriptDiv.textContent = transcript;
+
+        // Send to backend
+        try {
+          const res = await fetch("http://localhost:8000/api/command", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: transcript })
+          });
+          const data = await res.json();
+          responsePre.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+          responsePre.textContent = "Error talking to server: " + err;
+        }
+      };
+
+      startBtn.onclick = () => recognition.start();
+      stopBtn.onclick = () => recognition.stop();
+    }
+  </script>
+</body>
+</html>
